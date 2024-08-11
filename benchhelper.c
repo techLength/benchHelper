@@ -8,8 +8,9 @@
 #define IDC_PROCESSOR_GRID 1002
 #define IDC_APPLY_BUTTON 1003
 #define IDC_REVERT_BUTTON 1004
+#define IDC_PRIORITY 1005
 
-HWND hProcessList, hProcessorGrid, hApplyButton, hRevertButton;
+HWND hProcessList, hProcessorGrid, hApplyButton, hRevertButton, hPriority;
 DWORD_PTR selectedProcessors = 0;
 
 // Function prototypes
@@ -41,7 +42,7 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine
         WS_OVERLAPPEDWINDOW,            // Window style
         
         // Size and position
-        CW_USEDEFAULT, CW_USEDEFAULT, 800, 600,
+        CW_USEDEFAULT, CW_USEDEFAULT, 366, 644,
         
         NULL,       // Parent window    
         NULL,       // Menu
@@ -93,8 +94,15 @@ void CreateControls(HWND hwnd) {
     // Create process list dropdown with vertical scrollbar
     hProcessList = CreateWindow("COMBOBOX", NULL, 
         WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_VSCROLL,
-        10, 10, 200, 300, hwnd, (HMENU)IDC_PROCESS_LIST, NULL, NULL);
+        10, 10, 331, 500, hwnd, (HMENU)IDC_PROCESS_LIST, NULL, NULL);
     PopulateProcessList(hProcessList);
+
+    hPriority = CreateWindow("COMBOBOX", "Select Priority", 
+        WS_CHILD | WS_VISIBLE | CBS_DROPDOWNLIST | CBS_HASSTRINGS | WS_VSCROLL,
+        230, 565, 111, 71, hwnd, (HMENU)IDC_PRIORITY, NULL, NULL);
+
+    SendMessage(hPriority, CB_ADDSTRING, 0, (LPARAM)"Highest");
+    SendMessage(hPriority, CB_ADDSTRING, 0, (LPARAM)"Realtime");    
 
     // Set the height of the dropdown list
     SendMessage(hProcessList, CB_SETDROPPEDWIDTH, 200, 0);
@@ -102,18 +110,18 @@ void CreateControls(HWND hwnd) {
     // Create processor grid (keep unchanged)
     hProcessorGrid = CreateWindow("LISTBOX", NULL,
         WS_CHILD | WS_VISIBLE | LBS_MULTIPLESEL,
-        10, 50, 200, 200, hwnd, (HMENU)IDC_PROCESSOR_GRID, NULL, NULL);
+        10, 43, 330, 512, hwnd, (HMENU)IDC_PROCESSOR_GRID, NULL, NULL);
     CreateProcessorGrid(hwnd);
 
     // Create Apply button (keep unchanged)
     hApplyButton = CreateWindow("BUTTON", "Apply", 
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        10, 500, 100, 30, hwnd, (HMENU)IDC_APPLY_BUTTON, NULL, NULL);
+        10, 565, 100, 30, hwnd, (HMENU)IDC_APPLY_BUTTON, NULL, NULL);
 
     // Create Revert button (keep unchanged)
     hRevertButton = CreateWindow("BUTTON", "Revert", 
         WS_CHILD | WS_VISIBLE | BS_PUSHBUTTON,
-        120, 500, 100, 30, hwnd, (HMENU)IDC_REVERT_BUTTON, NULL, NULL);
+        120, 565, 100, 30, hwnd, (HMENU)IDC_REVERT_BUTTON, NULL, NULL);
 }
 
 void PopulateProcessList(HWND hList) {
@@ -236,6 +244,17 @@ void RevertChanges(HWND hwnd) {
 
 
 void set_other_processes_affinity(DWORD selectedPID, DWORD_PTR processorMask) {
+    HANDLE hSelected = OpenProcess(PROCESS_SET_INFORMATION | PROCESS_QUERY_INFORMATION, FALSE, selectedPID);
+    if(SendMessage(hPriority, CB_GETCURSEL, 0, 0)){
+        set_process_priority(selectedPID, REALTIME_PRIORITY_CLASS);
+    }
+
+    if(!SendMessage(hPriority, CB_GETCURSEL, 0, 0)){
+        set_process_priority(selectedPID, HIGH_PRIORITY_CLASS);
+    }
+    
+    SetProcessAffinityMask(hSelected, processorMask);
+
     HANDLE hSnapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
     if (hSnapshot == INVALID_HANDLE_VALUE) {
         return;
